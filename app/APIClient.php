@@ -204,7 +204,7 @@ class APIClient
         }
     }
 
-    public function DeleteMember($listID, $email)
+    public function deleteMember($listID, $email)
     {
 
         $subscriber_hash =$this->subscriberHash($email);

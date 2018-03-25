@@ -11,29 +11,21 @@
 |
 */
 
-$router->get('/', function () use ($router) {
-    return $router->app->version();
-});
-
-
-//$client =app::make('App\APIClient');
-
-
 
 $router->group(['prefix' => 'api'], function () use ($router) {
-    $router->get('lists', ['uses' => 'ListController@getLists']);
-    $router->get('lists/{id}', ['uses' => 'ListController@getList']);
-    $router->POST('lists/{id}/update', ['uses' => 'ListController@updateList']);
-    $router->DELETE('lists/{id}', ['uses' => 'ListController@deleteList']);
-    $router->POST('lists/', ['uses' => 'ListController@createList']);
+    $router->get('lists', ['uses' => 'MailChimpController@getLists']);
+    $router->get('lists/{id}', ['uses' => 'MailChimpController@getList']);
+    $router->POST('lists/{id}/update', ['uses' => 'MailChimpController@updateList']);
+    $router->DELETE('lists/{id}', ['uses' => 'MailChimpController@deleteList']);
+    $router->POST('lists/', ['uses' => 'MailChimpController@createList']);
 });
 
 
 $router->group(['prefix' => 'api'], function () use ($router)
 {
-    $router->POST('lists/{id}/members/', ['uses' => 'ListController@addMember']);
-
-    $router->get('lists/{id}/members/', ['uses' => 'ListController@members']);
-    $router->Delete('members/{id}', ['uses' => 'ListController@deleteMember']);
+    $router->get('lists/{id}/members/', ['uses' => 'MailChimpController@members']);
+    $router->POST('lists/{id}/members/', ['uses' => 'MailChimpController@addMember']);
+    $router->POST('lists/{id}/members/update', ['uses' => 'MailChimpController@updateMember']);
+    $router->Delete('lists/{id}/members', ['uses' => 'MailChimpController@deleteMember']);
 
 });

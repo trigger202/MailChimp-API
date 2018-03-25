@@ -19,7 +19,7 @@ use App\MembersManager;
 
 
 
-class ListController extends Controller
+class MailChimpController extends Controller
 {
     /**
      * Create a new controller instance.
@@ -94,8 +94,6 @@ class ListController extends Controller
             $this->saveMember($newMembers);
         }
 
-
-
     }
 
     public function saveMember($memberArray)
@@ -126,12 +124,12 @@ class ListController extends Controller
 
     public function setListsTracker()
     {
-        SystemTracker::where('id',$this->listsTracker->id)->update(['isUpdated'=>false]);
+        SystemTracker::where('id',$this->listsTracker->id)->update(['isUpdated'=>true]);
     }
 
     public function setMembersTracker()
     {
-        SystemTracker::where('id',$this->membersTracker->id)->update(['isUpdated'=>false]);
+        SystemTracker::where('id',$this->membersTracker->id)->update(['isUpdated'=>true]);
     }
 
     public function getListTracker()
@@ -162,7 +160,6 @@ class ListController extends Controller
 
     public function createList(Request $request)
     {
-
         $rules =[
             'name'=>'required',
 
@@ -174,7 +171,6 @@ class ListController extends Controller
             'contact.zip'=>'required',
             'contact.country'=>'required',
             'contact.phone'=>'nullable|integer',
-
             'permission_reminder'=>'required',
             'use_archive_bar'=>     'nullable|boolean',
 
@@ -185,11 +181,9 @@ class ListController extends Controller
 
             'notify_on_subscribe'=>'nullable|email',
             'email_type_option'=>'required|boolean'
-
         ];
 
         $this->validate($request, $rules);
-
         $requestData = json_encode($request->all());
         $apiResponse =  json_decode($this->apiClient->createListItem($requestData));
 
@@ -206,9 +200,10 @@ class ListController extends Controller
 
 
     }
+
+
     public function updateList(Request $request, $id)
     {
-
         $result = $this->listExists($id);
         if($result==null)
         {
@@ -242,15 +237,11 @@ class ListController extends Controller
 
         $this->validate($request, $rules);
         $data = $request->all();
-        $apiResult = $this->apiClient->updateList($id, $data);
+//        $apiResult = $this->apiClient->updateList($id, $data);
 
-        if($apiResult)
-        {
-            MailChimpList::where('uniqueID',$id)->update(['name'=>$request->name]);
-            return response()->json(array('uniqueid'=>$id,'name'=>$request->name),'201');
-        }
+        MailChimpList::where('uniqueID',$id)->update(['name'=>$request->name]);
+        return response()->json(array('uniqueid'=>$id,'name'=>$request->name),'201');
 
-        return response()->json('could not update list id'.$id, 404 );
 
 
     }
@@ -272,10 +263,6 @@ class ListController extends Controller
 
     }
 
-//    public function members()
-//    {
-//       return $this->membersManager->getMembersList();
-//    }
 
     public function addMember(Request $request,$listID)
     {
@@ -308,7 +295,6 @@ class ListController extends Controller
 
         $data['email_address'] = strtolower($data['email_address']);
 
-        dd($data);
 
         $memberExists = MailChimpMember::where('email',$request->email_address)->first();
         /*check if the member is alrdy exists*/
@@ -333,13 +319,13 @@ class ListController extends Controller
         $result = $this->listExists($listID);
         if($result==null)
         {
-            return response()->json('listID '.$listID.' does not exist', 404);
+            return response()->json('listID '.$listID.' not found', 404);
         }
 
         $rules =[
-            'email_address'=>'required|email',
+            'email_address'=>'email',
             'email_type'=>'nullable',
-            'status'=> 'required|in:subscribed,unsubscribed,clean,pending',
+            'status'=> 'in:subscribed,unsubscribed,clean,pending',
             'merge_fields.FNAME'=>'nullable',
             'merge_fields.LNAME'=>'nullable',
             'interests.*'=>'nullable',
@@ -362,15 +348,15 @@ class ListController extends Controller
             return response()->json("member not found ", 404 );
 
         /*update on the Mailchimp*/
-        $this->apiClient->updateMember($listID,$request->email,$data);
-        $member = new MailChimpMember();
+//        $this->apiClient->updateMember($listID,$request->email,$data);
 
-        $member->list_id =$listID;
-        $member->email = $request->email_address;
-        $member->status = $request->status;
-        $member->save();
+            /*The only ting you can update is email others are ignored on the local side */
 
-        return response()->json( $member, '200');
+        MailChimpMember::where('id',$memberExists->id)->update(['status'=>$request->status]);
+
+
+
+        return response()->json( 'updated', '201');
 
     }
 
@@ -380,8 +366,36 @@ class ListController extends Controller
        return MailChimpMember::where('list_id', $listID)->get(['email','status']);
     }
 
-    public function deleteMember($listID)
+    private function memberExists($listID,$email)
     {
-        return MailChimpMember::where('list_id', $listID)->delete();
+        $email = strtolower($email);
+        return MailChimpMember::where([
+            ['email',$email],
+            ['list_id',$listID]
+        ])->first();
+
+
+    }
+
+    public function deleteMember(Request $request,$listID)
+    {
+        $result = $this->listExists($listID);
+        if($result==null)
+        {
+            return response()->json('listID '.$listID.' not found', 404);
+        }
+        $this->validate($request, ['email'=>'required|email']);
+        $email = strtolower($request->email);
+
+        $match = $this->memberExists($listID,$email);
+        if(!$match)
+        {
+              return response()->json('member '.$request->email.' not found', 404);
+        }
+
+//        $this->apiClient->deleteMember($listID,$email); /*Delete from Mailchimp*/
+        if(MailChimpMember::find($match->id)->delete())
+            return response()->json('deleted '.$request->email ,200);
+        return response()->json('Error...count not delete '.$request->email ,200);
     }
 }
