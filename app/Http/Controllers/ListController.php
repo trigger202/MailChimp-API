@@ -11,10 +11,13 @@ namespace App\Http\Controllers;
 
 use App\APIClient;
 use App\MailChimpList;
+use App\MailChimpMember;
 use App\SystemTracker;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Http\Request;
-use Illuminate\Contracts\Validation;
+use App\MembersManager;
+
+
 
 class ListController extends Controller
 {
@@ -25,9 +28,12 @@ class ListController extends Controller
      */
 
     private  $apiClient ;
+    private $membersManager;
     private $listsTracker;
     private $membersTracker;
     private $columnList = ['uniqueID', 'name'];
+    private const TRACKERVAL = false;
+
 
     /**
      * ListController constructor.
@@ -39,9 +45,8 @@ class ListController extends Controller
         $this->listsTracker = systemtracker::where('name','lists')->first();;
         $this->membersTracker = systemtracker::where('name','members')->first();
         $this->synchronizeDBandMailchimp();
+        $this->membersManager = new MembersManager($client);
     }
-
-
 
     private function synchronizeDBandMailchimp()
     {
@@ -60,11 +65,6 @@ class ListController extends Controller
         }
     }
 
-    public function getBasicListItemInfo($data)
-    {
-
-    }
-
     public function saveList($apiList)
     {
         MailChimpList::query()->truncate();
@@ -74,7 +74,7 @@ class ListController extends Controller
 
     public function setListsTracker()
     {
-        SystemTracker::where('id',$this->listsTracker->id)->update(['isUpdated'=>true]);
+        SystemTracker::where('id',$this->listsTracker->id)->update(['isUpdated'=>false]);
     }
 
     public function getListTracker()
@@ -100,10 +100,9 @@ class ListController extends Controller
     }
     public function listExists($listID, $allColumns = false)
     {
-        if($allColumns)
-            return MailChimpList::where('uniqueID',$listID)->first();
-        else
-            return MailChimpList::where('uniqueID',$listID)->first($this->columnList);
+        return MailChimpList::where('uniqueID',$listID)->first();
+
+
     }
 
     public function createList(Request $request)
@@ -136,30 +135,29 @@ class ListController extends Controller
 
         $this->validate($request, $rules);
 
-        $data = json_encode($request->all());
+        $requestData = json_encode($request->all());
+        $apiResponse =  json_decode($this->apiClient->createListItem($requestData));
 
-        $new =  json_decode($this->apiClient->createListItem($data));
-
-        if($new==false)
+        if($apiResponse==false)
         {
             return  response()->json('something went wrong adding the item', 404);
         }
 
         $newListItem = new MailChimpList();
-
-        $newListItem->uniqueID =$new->id;
-        $newListItem->name = $new->name;
+        $newListItem->uniqueID =$apiResponse->id;
+        $newListItem->name = $apiResponse->name;
         $newListItem->save();
         return  response()->json($newListItem, 200);
 
-        return response()->json($request->all(), '201');
 
     }
     public function updateList(Request $request, $id)
     {
-        if(!$this->listExists($id))
+
+        $result = $this->listExists($id);
+        if($result==null)
         {
-            return response()->json($id.' does not exist', 404);
+            return response()->json($id.' does not exist main', 404);
         }
 
         $rules =[
@@ -188,11 +186,10 @@ class ListController extends Controller
             ];
 
         $this->validate($request, $rules);
-
         $data = $request->all();
+        $apiResult = $this->apiClient->updateList($id, $data);
 
-
-        if($this->apiClient->updateList($id, $data))
+        if($apiResult)
         {
             MailChimpList::where('uniqueID',$id)->update(['name'=>$request->name]);
             return response()->json(array('uniqueid'=>$id,'name'=>$request->name),'201');
@@ -205,24 +202,24 @@ class ListController extends Controller
 
     public function deleteList($listID)
     {
-        $result = $this->listExists($listID,true);
-        if(!$result)
+        $result = $this->listExists($listID);
+        if($result==null)
         {
-            return response()->json($listID.' does not exist', 404);
+            return response()->json($listID.' does not exist main', 404);
         }
-
-        //delete from db and mailchimp as well
+//        delete from db and mailchimp as well
         MailChimpList::findorfail($result->id)->delete();
 
-        if($this->apiClient->deleteList($listID))
-            return response()->json($listID.' does not exist', 404);
-        return response()->json($listID.' deleted', 204);
-
+        $apiResponse = $this->apiClient->deleteList($listID);
+        if($apiResponse)
+            return response()->json($listID.' deleted', 204);
+        return response()->json($listID.' does not exist', 404);
 
     }
 
-    public function getCount()
+    public function membersIndex()
     {
-       $this->setListsTracker();
+       return $this->membersManager->membersList();
+
     }
 }

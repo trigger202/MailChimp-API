@@ -26,11 +26,9 @@ class APIClient
         $this->httpClient = new Client();
     }
 
-
-    /*gets all available lists*/
-    public function getLists()
+    public function getTotalListCount()
     {
-        $url = $this->url.'/lists/';
+        $url = $this->url."/lists?fields=total_items";
         try
         {
             $response = $this->API_Request('GET',$url);
@@ -45,12 +43,31 @@ class APIClient
     }
 
 
+    /*gets all available lists*/
+    public function getLists()
+    {
+        /*TODO -- change to pagination*/
+        $countObj = json_decode($this->getTotalListCount());
+        $count=$countObj->total_items;
+        $url = $this->url."/lists?count=$count&fields= lists.id,lists.name,lists.stats.member_count,total_items";
+        try
+        {
+            $response = $this->API_Request('GET',$url);
+            if($response->getStatusCode()==200)
+                return $response->getBody()->getContents();
+            return false;
+        }
+        catch (GuzzleException $e)
+        {
+            $e->getMessage();
+        }
+    }
 
 
     /*returns singe list if exists */
     public function getList($listID)
     {
-        $url = $this->url.'/lists/'.$listID;
+        $url = $this->url.'/lists/'.$listID.'?fields= id,name,stats.member_count';
         try
         {
             $response = $this->API_Request('GET',$url);
@@ -121,7 +138,7 @@ class APIClient
             if ($response->getStatusCode() == 200) {
                 return true;
             }
-            return false;
+            return $response->getReasonPhrase();
         }
         catch (GuzzleException $e)
         {
