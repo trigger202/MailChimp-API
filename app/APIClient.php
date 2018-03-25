@@ -13,6 +13,9 @@ class APIClient
     private $httpClient;
     private $api_key ;
 
+
+
+
     /**
      * APIClient constructor.
      * @param $httpClient
@@ -50,6 +53,8 @@ class APIClient
         $countObj = json_decode($this->getTotalListCount());
         $count=$countObj->total_items;
         $url = $this->url."/lists?count=$count&fields= lists.id,lists.name,lists.stats.member_count,total_items";
+//        $url = $this->url."/lists";
+
         try
         {
             $response = $this->API_Request('GET',$url);
@@ -68,6 +73,7 @@ class APIClient
     public function getList($listID)
     {
         $url = $this->url.'/lists/'.$listID.'?fields= id,name,stats.member_count';
+
         try
         {
             $response = $this->API_Request('GET',$url);
@@ -163,7 +169,6 @@ class APIClient
 
             $response = $this->API_Request('POST', $url,$data);
             if ($response->getStatusCode() == 200) {
-                /*newly created member data*/
                 return $response->getBody()->getContents();
             }
             return $response->getStatusCode();
@@ -221,10 +226,30 @@ class APIClient
 
     }
 
+    public function getMembers($listID)
+    {
+
+        $url = $this->url.'/lists/'.$listID.'/members/?fields=members.email_address,members.status';
+        try
+        {
+            $response = $this->API_Request('GET', $url);
+            if ($response->getStatusCode() == 200)
+            {
+                return $response->getBody()->getContents();
+            }
+            return false;
+        }
+        catch (Exception $e)
+        {
+            echo "ERROR...Something went wrong updating member.";
+            $e->getMessage();
+        }
+    }
+
     /*
      * Main function that handles all the calls
      * returns http response from the api*/
-    private function API_Request($method, $url, $args= null )
+    private function API_Request($method, $url, $args= null, $toArray = true )
     {
 
             try
@@ -235,11 +260,9 @@ class APIClient
                 }
                 else
                 {
-                    if(is_array($args)) {
+                    if(is_array($args) && $toArray) {
                         $args = json_encode($args);
                     }
-
-
                     return $this->httpClient->request($method, $url,
                         [
                             'auth' => ['username', $this->api_key],

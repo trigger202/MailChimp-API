@@ -33,6 +33,10 @@ class ListController extends Controller
     private $membersTracker;
     private $columnList = ['uniqueID', 'name'];
     private const TRACKERVAL = false;
+    PUBLIC CONST VALID_LANGUAGES = '"en","ar","af","be","bg","ca","zh","hr","cs","da","nl","et","fa","fi",
+"fr","fr_CA","de","el","he","hi","hu","is","id","ga","it","ja","km","ko",
+"lv","lt","mt","ms","mk","no","pl","pt","pt_PT","ro","ru","sr","sk","sl",
+"es","es_ES","sw","sv","ta","th","tr","uk", "v"';
 
 
     /**
@@ -42,8 +46,9 @@ class ListController extends Controller
     public function __construct(APIClient $client)
     {
         $this->apiClient = $client;
-        $this->listsTracker = systemtracker::where('name','lists')->first();;
+        $this->listsTracker = systemtracker::where('name','lists')->first();
         $this->membersTracker = systemtracker::where('name','members')->first();
+
         $this->synchronizeDBandMailchimp();
         $this->membersManager = new MembersManager($client);
     }
@@ -55,16 +60,63 @@ class ListController extends Controller
 
         $mailChimpList = json_decode($this->apiClient->getLists(),true);
         $newList = array();
+
         if(isset($mailChimpList['lists']))
         {
             foreach ($mailChimpList['lists'] as $item)
             {
+
                 $newList[] = array('uniqueID'=>$item['id'], 'name'=>$item['name']);
+                if($item['stats']['member_count'])
+                {
+                    $this->getMembers($item['id']);
+                }
             }
             $this->saveList($newList);
+            $this->setMembersTracker();
         }
     }
 
+    public function getMembers($listID)
+    {
+        $response = json_decode($this->apiClient->getMembers($listID));
+        if($response==false)
+            return ;
+
+        $memberList = $response->members;
+        foreach($memberList as $member)
+        {
+            $newMembers= array(
+                'list_id'=>$listID,
+                'email'=>$member->email_address,
+                'status'=>$member->status,
+            );
+            $this->saveMember($newMembers);
+        }
+
+
+
+    }
+
+    public function saveMember($memberArray)
+    {
+        $exist = MailChimpMember::where([
+
+            ['list_id','=',$memberArray['list_id']],
+            [ 'email','=', $memberArray['email']]
+
+        ])->first();
+
+        if($exist)
+        {
+            return; /*cannot subscribe to the same list twice*/
+        }
+        $memberModel = new MailChimpMember();
+        $memberModel->email = $memberArray['email'];
+        $memberModel->list_id = $memberArray['list_id'];
+        $memberModel->status = $memberArray['status'];
+        $memberModel->save();
+    }
     public function saveList($apiList)
     {
         MailChimpList::query()->truncate();
@@ -75,6 +127,11 @@ class ListController extends Controller
     public function setListsTracker()
     {
         SystemTracker::where('id',$this->listsTracker->id)->update(['isUpdated'=>false]);
+    }
+
+    public function setMembersTracker()
+    {
+        SystemTracker::where('id',$this->membersTracker->id)->update(['isUpdated'=>false]);
     }
 
     public function getListTracker()
@@ -101,8 +158,6 @@ class ListController extends Controller
     public function listExists($listID, $allColumns = false)
     {
         return MailChimpList::where('uniqueID',$listID)->first();
-
-
     }
 
     public function createList(Request $request)
@@ -157,7 +212,7 @@ class ListController extends Controller
         $result = $this->listExists($id);
         if($result==null)
         {
-            return response()->json($id.' does not exist main', 404);
+            return response()->json($id.' does not exist', 404);
         }
 
         $rules =[
@@ -205,7 +260,7 @@ class ListController extends Controller
         $result = $this->listExists($listID);
         if($result==null)
         {
-            return response()->json($listID.' does not exist main', 404);
+            return response()->json($listID.' does not exist', 404);
         }
 //        delete from db and mailchimp as well
         MailChimpList::findorfail($result->id)->delete();
@@ -217,9 +272,116 @@ class ListController extends Controller
 
     }
 
-    public function membersIndex()
-    {
-       return $this->membersManager->membersList();
+//    public function members()
+//    {
+//       return $this->membersManager->getMembersList();
+//    }
 
+    public function addMember(Request $request,$listID)
+    {
+        $result = $this->listExists($listID);
+        if($result==null)
+        {
+            return response()->json('listID '.$listID.' does not exist', 404);
+        }
+
+
+        $rules =[
+            'email_address'=>'required|email',
+            'email_type'=>'nullable',
+            'status'=> 'required|in:subscribed,unsubscribed,clean,pending',
+            'merge_fields.FNAME'=>'nullable',
+            'merge_fields.LNAME'=>'nullable',
+            'interests.*'=>'nullable',
+            'language'=>'nullable',
+            'vip'=>'nullable|boolean',
+            'location.latitude'=>'nullable|Integer',
+            'location.longitude'=>'nullable|Integer',
+            'ip_signup'=>'nullable',
+            'timestamp_signup'=>'nullable',
+            'ip_opt'=>'nullable',
+            'timestamp_opt'=>'nullable'
+        ];
+        $this->validate($request, $rules);
+
+        $data = $request->all();
+
+        $data['email_address'] = strtolower($data['email_address']);
+
+        dd($data);
+
+        $memberExists = MailChimpMember::where('email',$request->email_address)->first();
+        /*check if the member is alrdy exists*/
+        if($memberExists)
+            return response()->json("Conflict  - member alredy exists.", 409 );
+
+        /*update on the Mailchimp*/
+//        $this->apiClient->addMember($listID,$data);
+        $member = new MailChimpMember();
+
+        $member->list_id =$listID;
+        $member->email = $request->email_address;
+        $member->status = $request->status;
+        $member->save();
+
+        return response()->json( $member, '200');
+
+    }
+
+    public function updateMember(Request $request,$listID)
+    {
+        $result = $this->listExists($listID);
+        if($result==null)
+        {
+            return response()->json('listID '.$listID.' does not exist', 404);
+        }
+
+        $rules =[
+            'email_address'=>'required|email',
+            'email_type'=>'nullable',
+            'status'=> 'required|in:subscribed,unsubscribed,clean,pending',
+            'merge_fields.FNAME'=>'nullable',
+            'merge_fields.LNAME'=>'nullable',
+            'interests.*'=>'nullable',
+            'language'=>'nullable',
+            'vip'=>'nullable|boolean',
+            'location.latitude'=>'nullable|Integer',
+            'location.longitude'=>'nullable|Integer',
+            'ip_signup'=>'nullable',
+            'timestamp_signup'=>'nullable',
+            'ip_opt'=>'nullable',
+            'timestamp_opt'=>'nullable'
+        ];
+        $this->validate($request, $rules);
+        $data = $request->all();
+
+
+        $memberExists = MailChimpMember::where('email',$request->email_address)->first();
+        /*check if the member is alrdy exists*/
+        if($memberExists==null)
+            return response()->json("member not found ", 404 );
+
+        /*update on the Mailchimp*/
+        $this->apiClient->updateMember($listID,$request->email,$data);
+        $member = new MailChimpMember();
+
+        $member->list_id =$listID;
+        $member->email = $request->email_address;
+        $member->status = $request->status;
+        $member->save();
+
+        return response()->json( $member, '200');
+
+    }
+
+
+    public function members($listID)
+    {
+       return MailChimpMember::where('list_id', $listID)->get(['email','status']);
+    }
+
+    public function deleteMember($listID)
+    {
+        return MailChimpMember::where('list_id', $listID)->delete();
     }
 }

@@ -14,9 +14,12 @@ class CreateMailChimpMembersTable extends Migration
     public function up()
     {
         Schema::create('MailChimpMembers', function (Blueprint $table) {
-            $table->string('id')->unique();
+            /*TODO -- make listid and email primary key*/
+            $table->increments('d');
             $table->string('list_id')->foriegn()->references('MailChimpLists')->on('id');
-            $table->string('email');
+            $table->string('email'); /*member can subscribe to two different lists*/
+
+            $table->string("status");
             $table->timestamps();
         });
     }

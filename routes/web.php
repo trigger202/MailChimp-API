@@ -26,15 +26,14 @@ $router->group(['prefix' => 'api'], function () use ($router) {
     $router->POST('lists/{id}/update', ['uses' => 'ListController@updateList']);
     $router->DELETE('lists/{id}', ['uses' => 'ListController@deleteList']);
     $router->POST('lists/', ['uses' => 'ListController@createList']);
-//    $router->get('lists/count', ['uses' => 'ListController@listCount']);
 });
 
 
-$router->group(['prefix' => 'api'], function () use ($router) {
-    $router->get('members', ['uses' => 'ListController@membersIndex']);
-    $router->get('members/{id}', ['uses' => 'ListController@getList']);
-    $router->POST('members/{id}/update', ['uses' => 'ListController@updateList']);
-    $router->DELETE('members/{id}', ['uses' => 'ListController@deleteList']);
-    $router->POST('members/', ['uses' => 'ListController@createList']);
-//    $router->get('lists/count', ['uses' => 'ListController@listCount']);
+$router->group(['prefix' => 'api'], function () use ($router)
+{
+    $router->POST('lists/{id}/members/', ['uses' => 'ListController@addMember']);
+
+    $router->get('lists/{id}/members/', ['uses' => 'ListController@members']);
+    $router->Delete('members/{id}', ['uses' => 'ListController@deleteMember']);
+
 });
