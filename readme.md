@@ -34,7 +34,13 @@ SET UP
 
 
 
+TODO
+==========
 
+1) Correct status codes
+2) response body
+3) tweak the urls to  follow RESTful urls best practices
+4) Unit Testing 
 
 
 
