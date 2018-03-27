@@ -34,8 +34,7 @@ SET UP
 
 
 
-TODO
-==========
+***Further changes***
 
 1) Correct status codes
 2) response body
