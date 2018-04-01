@@ -19,3 +19,28 @@ If you discover a security vulnerability within Lumen, please send an e-mail to 
 ## License
 
 The Lumen framework is open-sourced software licensed under the [MIT license](http://opensource.org/licenses/MIT)
+
+
+SET UP
+========================
+
+1) clone project
+2) run migrations
+3) run seed 
+4) set MailChimp API Key in .env file by naming it "API_KEY"
+5) Start application 
+
+
+
+
+
+***Further changes***
+
+1) Correct status codes
+2) response body
+3) tweak the urls to  follow RESTful urls best practices
+4) Unit Testing 
+
+
+
+
