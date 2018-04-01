@@ -24,10 +24,14 @@ class AppServiceProvider extends ServiceProvider
 
     public function register()
     {
-        $this->app->bind(APIClient::class, function()
+        return $this->app->singleton('apiclient', function($app)
         {
+            if($app["App\APIClient"])
+            {
+                return $app["App\APIClient"];
+            }
+            return new \App\APIClient();
 
-            return  new APIClient(env('API_KEY'));
         });
 
     }

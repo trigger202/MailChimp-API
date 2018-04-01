@@ -21,10 +21,12 @@ class MembersManager
      * MembersManager constructor.
      * @param $apiClient
      */
-    public function __construct(APIClient $apiClient)
+    public function __construct()
     {
         $this->membersTracker = systemtracker::where('name','members')->first();
-        $this->apiClient = $apiClient;
+        $this->apiClient= App('apiclient');
+
+        $this->apiClient->test+= 2104;
     }
 
 

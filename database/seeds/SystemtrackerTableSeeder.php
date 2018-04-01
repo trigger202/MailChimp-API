@@ -12,6 +12,7 @@ class SystemtrackerTableSeeder extends Seeder
     public function run()
     {
         $columns =['lists','members'];
+
         foreach ($columns as $name)
         {
             DB::table('systemtracker')->insert([

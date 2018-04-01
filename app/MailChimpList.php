@@ -13,4 +13,7 @@ class MailChimpList extends  Model
 {
     protected  $fillable = ['id', 'uniqueID','name'];
     protected $table = "mailchimplists";
+    protected $hidden =['id','created_at','updated_at'];
+
+
 }

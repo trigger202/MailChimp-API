@@ -2,16 +2,14 @@
 /**
  * Created by PhpStorm.
  * User: Bozo
- * Date: 23/03/2018
- * Time: 10:48 AM
+ * Date: 30/03/2018
+ * Time: 4:28 PM
  */
-
 
 namespace App\Http\Controllers;
 
+
 use App\APIClient;
-use App\Campaign;
-use App\ListContact;
 use App\MailChimpList;
 use App\MailChimpMember;
 use App\SystemTracker;
@@ -20,14 +18,9 @@ use Illuminate\Http\Request;
 use App\MembersManager;
 
 
-
-class MailChimpController extends Controller
+class MailChimpAPIController
 {
-    /**
-     * Create a new controller instance.
-     *
-     * @return void
-     */
+
 
     private  $apiClient ;
     private $membersManager;
@@ -51,10 +44,6 @@ class MailChimpController extends Controller
         $this->listsTracker = systemtracker::where('name','lists')->first();
         $this->membersTracker = systemtracker::where('name','members')->first();
         $this->apiClient->test++;
-        if(!$this->listsTracker)
-        {
-            exit('seed tables');
-        }
 
         $this->synchronizeDBandMailchimp();
         $this->membersManager = new MembersManager($this->apiClient);
@@ -160,25 +149,11 @@ class MailChimpController extends Controller
     public function getList($listID)
     {
         $record = $this->listExists($listID);
-        if($record==null)
-            return response()->json('Not found',404);
+        if($record)
+            return response()->json($record, 200);
+        return response()->json('Not found', 404);
 
-        $contactInfo = ListContact::where('list_id',$listID)->first();
-        if($contactInfo==null)
-        {
-            return response()->json('Error, something is wrong with '.$listID.' contact info. Please update contact data first', 400);
-        }
-
-        $campaignData = Campaign::where('list_id',$listID)->first();
-        if(!$campaignData)
-        {
-            return response()->json('Error, something is wrong with '.$listID.' campaign info. Please update contact data first', 400);
-        }
-        /*        construct the final response object*/
-        $final = array('id'=>$listID,'contact'=>$campaignData->toArray(),'campaign_defaults'=>$campaignData->toArray());
-        return response()->json($final, 200);
     }
-
     public function listExists($listID)
     {
         return MailChimpList::where('uniqueID',$listID)->first();
@@ -186,9 +161,6 @@ class MailChimpController extends Controller
 
     public function createList(Request $request)
     {
-        /*we generate random unique ID for each new item*/
-        $newListID = uniqid();
-
         $rules =[
             'name'=>'required',
 
@@ -212,77 +184,69 @@ class MailChimpController extends Controller
             'email_type_option'=>'required|boolean'
         ];
 
-
         $this->validate($request, $rules);
+        $requestData = json_encode($request->all());
+        $apiResponse =  json_decode($this->apiClient->createListItem($requestData));
 
-        /*valid data, so go ahead and save the data*/
-        $contactData = $request->contact;
-        $campaignData = $request->campaign_defaults;
-        $campaignData= array_add($campaignData, 'list_id',$newListID);
-        $contactData= array_add($contactData, 'list_id',$newListID);
-
+        if($apiResponse==false)
+        {
+            return  response()->json('something went wrong adding the item', 404);
+        }
 
         $newListItem = new MailChimpList();
-        $newListItem->uniqueID =$newListID;
-        $newListItem->name = $request->name;
+        $newListItem->uniqueID =$apiResponse->id;
+        $newListItem->name = $apiResponse->name;
         $newListItem->save();
-
-        $campaign = new Campaign($campaignData);
-        $campaign->save();
-
-        $contact = new ListContact($contactData);
-        $contact->save();
+        return  response()->json($newListItem, 200);
 
 
-        $data = $request->all();
-        $data = array('id' => $newListID) + $data;
-
-
-        return  response()->json($data, 200);
     }
-
-
 
 
     public function updateList(Request $request, $listID)
     {
-        $rules =[
-            'name'=>'required',
-
-            'contact.company'=>'required',
-            'contact.address1'=>'required',
-            'contact.address2'=>'nullable',
-            'contact.city'=>'required',
-            'contact.state'=>'required',
-            'contact.zip'=>'required',
-            'contact.country'=>'required',
-            'contact.phone'=>'nullable|integer',
-            'permission_reminder'=>'required',
-            'use_archive_bar'=>     'nullable|boolean',
-
-            'campaign_defaults.from_name'=>'required',
-            'campaign_defaults.from_email'=>'required',
-            'campaign_defaults.subject'=>'required',
-            'campaign_defaults.language'=>'required',
-
-            'notify_on_subscribe'=>'nullable|email',
-            'email_type_option'=>'required|boolean'
-        ];
 
         $record = $this->listExists($listID);
         if($record==null)
         {
             return response()->json('Not found', 404);
         }
-        /*valid data, so go ahead and save the data*/
-        $contactData = $request->contact;
-        $campaignData = $request->campaign_defaults;
-
-
+        /*validate data*/
+        $rules =[ 'name'=>'required'];
         $this->validate($request, $rules);
         /*item exist and data is valid, so we can go ahead and update the record*/
         $record->update($request->all());
         return response()->json($record,'200');
+
+
+
+//        $rules =[
+//
+//                    'name'=>'required',
+//                    'contact.company'=>'required',
+//                    'contact.address1'=>'required',
+//                    'contact.address2'=>'nullable',
+//                    'contact.city'=>'required',
+//                    'contact.state'=>'required',
+//                    'contact.zip'=>'required',
+//                    'contact.country'=>'required',
+//                    'contact.phone'=>'nullable|integer',
+//
+//                    'permission_reminder'=>'required',
+//                    'use_archive_bar'=>     'nullable|boolean',
+//
+//                    'campaign_defaults.from_name'=>'required',
+//                    'campaign_defaults.from_email'=>'required',
+//                    'campaign_defaults.subject'=>'required',
+//                    'campaign_defaults.language'=>'required',
+//
+//                    'notify_on_subscribe'=>'nullable|email',
+//                    'email_type_option'=>'required|boolean'
+//
+//            ];
+
+
+
 
     }
 
@@ -384,7 +348,7 @@ class MailChimpController extends Controller
         /*update on the Mailchimp*/
 //        $this->apiClient->updateMember($listID,$request->email,$data);
 
-            /*The only ting you can update is email others are ignored on the local side */
+        /*The only ting you can update is email others are ignored on the local side */
 
         MailChimpMember::where('id',$memberExists->id)->update(['status'=>$request->status]);
 
@@ -397,7 +361,7 @@ class MailChimpController extends Controller
 
     public function members($listID)
     {
-       return MailChimpMember::where('list_id', $listID)->get(['email','status']);
+        return MailChimpMember::where('list_id', $listID)->get(['email','status']);
     }
 
     private function memberExists($listID,$email)
@@ -424,7 +388,7 @@ class MailChimpController extends Controller
         $match = $this->memberExists($listID,$email);
         if(!$match)
         {
-              return response()->json('member '.$request->email.' not found', 404);
+            return response()->json('member '.$request->email.' not found', 404);
         }
 
 //        $this->apiClient->deleteMember($listID,$email); /*Delete from Mailchimp*/
@@ -432,44 +396,5 @@ class MailChimpController extends Controller
             return response()->json('deleted '.$request->email ,200);
         return response()->json('Error...count not delete '.$request->email ,200);
     }
+
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

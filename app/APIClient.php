@@ -12,9 +12,8 @@ class APIClient
     private $url = "https://us12.api.mailchimp.com/3.0";
     private $httpClient;
     private $api_key ;
-
-
-
+    private $badRequest;
+    public $test ;
 
     /**
      * APIClient constructor.
@@ -23,11 +22,15 @@ class APIClient
      */
 
     /* pass the api key in the constructor  */
-    public function __construct($api_key)
+    public function __construct()
     {
-        $this->api_key = $api_key;
+        $this->api_key = env('API_KEY');
         $this->httpClient = new Client();
+        $this->badRequest = array( 'Messsage'=>'HTTP/1.1 400 Bad Request','errorCode'=>'400');
+        $this->test = 1;
     }
+
+
 
     public function getTotalListCount()
     {
@@ -80,10 +83,12 @@ class APIClient
             if($response->getStatusCode()==200)
                 return $response->getBody()->getContents();
             return false;
+
         }
         catch (GuzzleException $e)
         {
             $e->getMessage();
+
         }
     }
 
@@ -144,7 +149,7 @@ class APIClient
             if ($response->getStatusCode() == 200) {
                 return true;
             }
-            return $response->getReasonPhrase();
+            return false;
         }
         catch (GuzzleException $e)
         {
@@ -171,7 +176,7 @@ class APIClient
             if ($response->getStatusCode() == 200) {
                 return $response->getBody()->getContents();
             }
-            return $response->getStatusCode();
+            return false;
         }
         catch (GuzzleException $e)
         {
@@ -195,7 +200,7 @@ class APIClient
                 return $response->getBody()->getContents();
 
             }
-            return $response->getStatusCode();
+            return false;
         }
         catch (GuzzleException $e)
         {
@@ -256,7 +261,7 @@ class APIClient
             {
                 if($args==null)
                 {
-                    return  $this->httpClient->request($method, $url, ['auth' => ['username', $this->api_key]] );
+                    return $this->httpClient->request($method, $url, ['auth' => ['username', $this->api_key]] );
                 }
                 else
                 {
@@ -269,12 +274,12 @@ class APIClient
                             'body'=>$args
                         ]);
                 }
+
             }
             catch (Exception $e)
             {
-                echo "ERROR...Something went wrong.\n\n\n";
-                print_r($e);
-                exit();
+                /*HTTP/1.1 400 Bad Request*/
+                return false;
             }
 
     }

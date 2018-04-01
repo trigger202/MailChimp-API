@@ -12,10 +12,12 @@
 */
 
 
+//===================Start app ========= php -S localhost:9090 -t public
+
 $router->group(['prefix' => 'api'], function () use ($router) {
     $router->get('lists', ['uses' => 'MailChimpController@getLists']);
     $router->get('lists/{id}', ['uses' => 'MailChimpController@getList']);
-    $router->POST('lists/{id}/update', ['uses' => 'MailChimpController@updateList']);
+    $router->PUT('lists/{id}', ['uses' => 'MailChimpController@updateList']);
     $router->DELETE('lists/{id}', ['uses' => 'MailChimpController@deleteList']);
     $router->POST('lists/', ['uses' => 'MailChimpController@createList']);
 });
