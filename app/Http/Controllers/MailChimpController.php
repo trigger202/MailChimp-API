@@ -306,7 +306,7 @@ class MailChimpController extends Controller
         {
             return response()->json('listID '.$listID.' does not exist', 404);
         }
-
+        /*dd373ace8118cd0da914ea708e9138f0-us12*/
         $rules =[
             'email_address'=>'required|email',
             'email_type'=>'nullable',
